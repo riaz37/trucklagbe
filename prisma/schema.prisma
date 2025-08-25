@@ -1,0 +1,60 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Driver {
+  id             Int      @id @default(autoincrement())
+  driver_name    String   @map("driver_name")
+  phone_number   String   @map("phone_number")
+  onboarding_date DateTime @map("onboarding_date")
+  trips          Trip[]
+  
+  @@map("drivers")
+  @@index([id]) // Primary key index
+}
+
+model Trip {
+  id            Int      @id @default(autoincrement())
+  driver_id     Int      @map("driver_id")
+  start_location String  @map("start_location")
+  end_location   String  @map("end_location")
+  trip_date     DateTime @map("trip_date")
+  driver        Driver   @relation(fields: [driver_id], references: [id])
+  payment       Payment?
+  rating        Rating?
+  
+  @@map("trips")
+  @@index([driver_id]) // Critical for driver analytics queries
+  @@index([trip_date]) // For date range queries
+}
+
+model Payment {
+  id          Int      @id @default(autoincrement())
+  trip_id     Int      @unique @map("trip_id")
+  amount      Decimal  @db.Decimal(10, 2) @map("amount")
+  payment_date DateTime @map("payment_date")
+  trip        Trip     @relation(fields: [trip_id], references: [id])
+  
+  @@map("payments")
+  @@index([trip_id]) // For payment lookups
+}
+
+model Rating {
+  id           Int      @id @default(autoincrement())
+  rating_id    Int      @map("rating_id")
+  trip_id      Int      @unique @map("trip_id")
+  rating_value Decimal  @db.Decimal(3, 2) @map("rating_value")
+  comment      String?  @map("comment")
+  trip         Trip     @relation(fields: [trip_id], references: [id])
+  
+  @@map("ratings")
+  @@index([trip_id]) // For rating lookups
+}

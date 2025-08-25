@@ -3,95 +3,191 @@ import {
   Get,
   Param,
   Query,
-  HttpException,
-  HttpStatus,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+} from '@nestjs/swagger';
 import { TripAnalyticsService } from './trip-analytics.service';
-import { DriverAnalytics } from '../database/database.service';
+import { DriverAnalytics } from '../types/trip-analytics.types';
+import {
+  DriverAnalyticsDto,
+  ErrorResponseDto,
+  DriverIdParamDto,
+  AnalyticsQueryDto,
+} from '../types/dto/driver-analytics.dto';
 
+@ApiTags('drivers')
 @Controller('api/v1/drivers')
 export class TripAnalyticsController {
   constructor(private readonly tripAnalyticsService: TripAnalyticsService) {}
 
   @Get(':driverId/analytics')
+  @ApiOperation({
+    summary: 'Get driver analytics',
+    description:
+      'Retrieve comprehensive analytics for a specific driver with optional optimization',
+  })
+  @ApiParam({
+    name: 'driverId',
+    description: 'Driver ID',
+    example: '1001',
+  })
+  @ApiQuery({
+    name: 'optimized',
+    description: 'Use optimized query (true/false)',
+    required: false,
+    example: 'false',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Driver analytics retrieved successfully',
+    type: DriverAnalyticsDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid driver ID',
+    type: ErrorResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Driver not found',
+    type: ErrorResponseDto,
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+    type: ErrorResponseDto,
+  })
+  @UsePipes(new ValidationPipe({ transform: true }))
   async getDriverAnalytics(
-    @Param('driverId') driverId: string,
-    @Query('optimized') optimized: string = 'false',
+    @Param() params: DriverIdParamDto,
+    @Query() query: AnalyticsQueryDto,
   ): Promise<DriverAnalytics> {
-    const driverIdNum = parseInt(driverId);
-
-    if (isNaN(driverIdNum)) {
-      throw new HttpException('Invalid driver ID', HttpStatus.BAD_REQUEST);
-    }
-
-    try {
-      if (optimized === 'true') {
-        return await this.tripAnalyticsService.getDriverAnalyticsOptimized(
-          driverIdNum,
-        );
-      } else {
-        return await this.tripAnalyticsService.getDriverAnalyticsUnoptimized(
-          driverIdNum,
-        );
-      }
-    } catch (error) {
-      if (error.message === 'Driver not found') {
-        throw new HttpException('Driver not found', HttpStatus.NOT_FOUND);
-      }
-      throw new HttpException(
-        'Internal server error',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
+    return this.tripAnalyticsService.getDriverAnalytics(
+      params.driverId,
+      query.optimized,
+    );
   }
 
   @Get(':driverId/analytics/unoptimized')
+  @ApiOperation({
+    summary: 'Get driver analytics (unoptimized)',
+    description: 'Retrieve driver analytics using unoptimized database queries',
+  })
+  @ApiParam({
+    name: 'driverId',
+    description: 'Driver ID',
+    example: '1001',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Driver analytics retrieved successfully',
+    type: DriverAnalyticsDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid driver ID',
+    type: ErrorResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Driver not found',
+    type: ErrorResponseDto,
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+    type: ErrorResponseDto,
+  })
+  @UsePipes(new ValidationPipe({ transform: true }))
   async getDriverAnalyticsUnoptimized(
-    @Param('driverId') driverId: string,
+    @Param() params: DriverIdParamDto,
   ): Promise<DriverAnalytics> {
-    const driverIdNum = parseInt(driverId);
-
-    if (isNaN(driverIdNum)) {
-      throw new HttpException('Invalid driver ID', HttpStatus.BAD_REQUEST);
-    }
-
-    try {
-      return await this.tripAnalyticsService.getDriverAnalyticsUnoptimized(
-        driverIdNum,
-      );
-    } catch (error) {
-      if (error.message === 'Driver not found') {
-        throw new HttpException('Driver not found', HttpStatus.NOT_FOUND);
-      }
-      throw new HttpException(
-        'Internal server error',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
+    return this.tripAnalyticsService.getDriverAnalyticsUnoptimized(
+      params.driverId,
+    );
   }
 
   @Get(':driverId/analytics/optimized')
+  @ApiOperation({
+    summary: 'Get driver analytics (optimized)',
+    description: 'Retrieve driver analytics using optimized database queries',
+  })
+  @ApiParam({
+    name: 'driverId',
+    description: 'Driver ID',
+    example: '1001',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Driver analytics retrieved successfully',
+    type: DriverAnalyticsDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid driver ID',
+    type: ErrorResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Driver not found',
+    type: ErrorResponseDto,
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+    type: ErrorResponseDto,
+  })
+  @UsePipes(new ValidationPipe({ transform: true }))
   async getDriverAnalyticsOptimized(
-    @Param('driverId') driverId: string,
+    @Param() params: DriverIdParamDto,
   ): Promise<DriverAnalytics> {
-    const driverIdNum = parseInt(driverId);
+    return this.tripAnalyticsService.getDriverAnalyticsOptimized(
+      params.driverId,
+    );
+  }
 
-    if (isNaN(driverIdNum)) {
-      throw new HttpException('Invalid driver ID', HttpStatus.BAD_REQUEST);
-    }
-
-    try {
-      return await this.tripAnalyticsService.getDriverAnalyticsOptimized(
-        driverIdNum,
-      );
-    } catch (error) {
-      if (error.message === 'Driver not found') {
-        throw new HttpException('Driver not found', HttpStatus.NOT_FOUND);
-      }
-      throw new HttpException(
-        'Internal server error',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
+  @Get(':driverId/analytics/cached')
+  @ApiOperation({
+    summary: 'Get driver analytics (cached)',
+    description:
+      'Retrieve driver analytics from cache for improved performance',
+  })
+  @ApiParam({
+    name: 'driverId',
+    description: 'Driver ID',
+    example: '1001',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Driver analytics retrieved successfully from cache',
+    type: DriverAnalyticsDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid driver ID',
+    type: ErrorResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Driver not found',
+    type: ErrorResponseDto,
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+    type: ErrorResponseDto,
+  })
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async getDriverAnalyticsCached(
+    @Param() params: DriverIdParamDto,
+  ): Promise<DriverAnalytics> {
+    return this.tripAnalyticsService.getDriverAnalyticsCached(params.driverId);
   }
 }

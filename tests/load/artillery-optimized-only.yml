@@ -1,0 +1,77 @@
+config:
+  target: 'http://localhost:3000'
+  phases:
+    # Warm-up phase - gradual increase
+    - duration: 120
+      arrivalRate: 5
+      name: "Warm-up phase"
+    
+    # Sustained load - normal production traffic
+    - duration: 300
+      arrivalRate: 50
+      name: "Sustained production load"
+    
+    # Peak load - high traffic scenarios
+    - duration: 180
+      arrivalRate: 100
+      name: "Peak load testing"
+    
+    # Stress testing - beyond normal capacity
+    - duration: 120
+      arrivalRate: 200
+      name: "Stress testing"
+    
+    # Spike testing - sudden traffic bursts
+    - duration: 60
+      arrivalRate: 500
+      name: "Traffic spike testing"
+    
+    # Recovery testing - back to normal
+    - duration: 120
+      arrivalRate: 30
+      name: "Recovery testing"
+  
+  defaults:
+    headers:
+      Content-Type: 'application/json'
+      Authorization: 'Bearer test-token-123'
+    timeout: 30000
+
+scenarios:
+  # OPTIMIZED ENDPOINTS ONLY (100% of traffic)
+  - name: "Driver Analytics - Optimized Endpoint 1"
+    weight: 30
+    flow:
+      - get:
+          url: "/api/v1/drivers/1/analytics/optimized"
+  
+  - name: "Driver Analytics - Optimized Endpoint 2"
+    weight: 25
+    flow:
+      - get:
+          url: "/api/v1/drivers/2/analytics/optimized"
+  
+  - name: "Driver Analytics - Optimized Endpoint 3"
+    weight: 20
+    flow:
+      - get:
+          url: "/api/v1/drivers/3/analytics/optimized"
+  
+  - name: "Driver Analytics - Optimized Endpoint 4"
+    weight: 15
+    flow:
+      - get:
+          url: "/api/v1/drivers/4/analytics/optimized"
+  
+  - name: "Driver Analytics - Optimized Endpoint 5"
+    weight: 10
+    flow:
+      - get:
+          url: "/api/v1/drivers/5/analytics/optimized"
+
+# Custom metrics and thresholds for OPTIMIZED ENDPOINTS
+expect:
+  - statusCode: [200, 201, 404]
+  - maxResponseTime: 2000  # 2 seconds max response time (optimized target)
+  - p95ResponseTime: 1000  # 95% of requests under 1 second (optimized target)
+  - p99ResponseTime: 2000  # 99% of requests under 2 seconds (optimized target) 

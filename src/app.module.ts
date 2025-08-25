@@ -1,12 +1,20 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { TripAnalyticsModule } from './trip-analytics/trip-analytics.module';
-import { DatabaseModule } from './database/database.module';
+import { RedisService } from './database/redis.service';
 
 @Module({
-  imports: [DatabaseModule, TripAnalyticsModule],
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: '.env',
+    }),
+    TripAnalyticsModule,
+  ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, RedisService],
+  exports: [RedisService],
 })
 export class AppModule {}

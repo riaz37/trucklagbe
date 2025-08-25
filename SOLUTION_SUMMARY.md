@@ -61,47 +61,56 @@ For a driver with:
 
 ```typescript
 async getDriverAnalyticsUnoptimized(driverId: number): Promise<DriverAnalytics> {
-  const query = `
-    SELECT 
-      d.driver_id, d.driver_name, d.phone_number, d.onboarding_date,
-      COUNT(t.trip_id) as total_trips,
-      COALESCE(SUM(p.amount), 0) as total_earnings,
-      COALESCE(AVG(r.rating_value), 0) as average_rating,
-      JSON_ARRAYAGG(...) as trips
-    FROM drivers d
-    LEFT JOIN trips t ON d.driver_id = t.driver_id
-    LEFT JOIN payments p ON t.trip_id = p.trip_id
-    LEFT JOIN ratings r ON t.trip_id = r.trip_id
-    WHERE d.driver_id = ?
-    GROUP BY d.driver_id, d.driver_name, d.phone_number, d.onboarding_date
-  `;
+  const result = await this.prisma.driver.findUnique({
+    where: { id: driverId },
+    include: {
+      trips: {
+        include: {
+          payment: true,
+          rating: true,
+        },
+      },
+    },
+  });
   
-  const [rows] = await this.connection.execute(query, [driverId]);
-  // ... process results
+  // Process complex result with multiple relations
+  // ... data processing logic
 }
 ```
 
 **Problems**:
-- Single complex query with 4 table JOINs
-- JSON aggregation in SQL (expensive)
+- Complex Prisma query with multiple relation includes
 - All data fetched in one database round-trip
 - Memory usage scales exponentially with trip count
+- Type safety but still performance issues
 
 ### 2. Optimized Approach (`getDriverAnalyticsOptimized`)
 
 ```typescript
 async getDriverAnalyticsOptimized(driverId: number): Promise<DriverAnalytics> {
   // Query 1: Driver info (1 row, indexed lookup)
-  const driver = await this.getDriver(driverId);
+  const driver = await this.prisma.driver.findUnique({
+    where: { id: driverId },
+    select: { id: true, driver_name: true, phone_number: true, onboarding_date: true }
+  });
   
   // Query 2: Trips (N rows, indexed lookup)
-  const trips = await this.getTrips(driverId);
+  const trips = await this.prisma.trip.findMany({
+    where: { driver_id: driverId },
+    select: { id: true, start_location: true, end_location: true, trip_date: true }
+  });
   
   // Query 3: Payments (N rows, indexed lookup)
-  const payments = await this.getPayments(tripIds);
+  const payments = await this.prisma.payment.findMany({
+    where: { trip_id: { in: tripIds } },
+    select: { trip_id: true, amount: true }
+  });
   
   // Query 4: Ratings (N rows, indexed lookup)
-  const ratings = await this.getRatings(tripIds);
+  const ratings = await this.prisma.rating.findMany({
+    where: { trip_id: { in: tripIds } },
+    select: { trip_id: true, rating_value: true, comment: true }
+  });
   
   // Combine in application layer
   return this.combineData(driver, trips, payments, ratings);
@@ -109,11 +118,90 @@ async getDriverAnalyticsOptimized(driverId: number): Promise<DriverAnalytics> {
 ```
 
 **Benefits**:
-- 4 simple, indexed queries
+- 4 simple, indexed Prisma queries
 - Each query is O(log N) complexity
 - Queries 2-4 can run in parallel
 - Memory usage scales linearly
 - Easier to optimize individual queries
+- Full TypeScript type safety
+
+## 🏗️ Architecture Improvements
+
+### Centralized Type System
+```typescript
+// src/types/trip-analytics.types.ts
+export interface DriverAnalytics {
+  driver_id: number;
+  driver_name: string;
+  phone_number: string;
+  onboarding_date: Date;
+  total_trips: number;
+  total_earnings: number;
+  average_rating: number;
+  trips: TripDetail[];
+}
+
+export interface TripDetail {
+  trip_id: number;
+  start_location: string;
+  end_location: string;
+  trip_date: Date;
+  amount: number;
+  rating_value: number;
+  comment: string;
+}
+```
+
+### Prisma Schema Design
+```prisma
+model Driver {
+  id             Int      @id @default(autoincrement())
+  driver_name    String   @map("driver_name")
+  phone_number   String   @map("phone_number")
+  onboarding_date DateTime @map("onboarding_date")
+  trips          Trip[]
+  
+  @@map("drivers")
+}
+
+model Trip {
+  id            Int      @id @default(autoincrement())
+  driver_id     Int      @map("driver_id")
+  start_location String  @map("start_location")
+  end_location   String  @map("end_location")
+  trip_date     DateTime @map("trip_date")
+  driver        Driver   @relation(fields: [driver_id], references: [id])
+  payment       Payment?
+  rating        Rating?
+  
+  @@map("trips")
+}
+```
+
+## 🌏 Bangladesh Data Integration
+
+### Realistic Logistics Data
+- **20 Major Cities**: Dhaka, Chittagong, Sylhet, Rajshahi, Khulna, etc.
+- **Authentic Names**: Bangladeshi driver names (Abdul Rahman, Mohammad Ali, etc.)
+- **Local Currency**: BDT amounts (500-5000 range)
+- **Cultural Context**: Appropriate ratings and comments
+- **Realistic Routes**: Inter-city logistics patterns
+
+### Seed Script Features
+```typescript
+// prisma/seed.ts
+const bangladeshCities = [
+  'Dhaka', 'Chittagong', 'Sylhet', 'Rajshahi', 'Khulna',
+  'Barisal', 'Rangpur', 'Mymensingh', 'Comilla', 'Narayanganj'
+];
+
+const bangladeshiNames = [
+  'Abdul Rahman', 'Mohammad Ali', 'Ahmed Khan',
+  'Fatima Begum', 'Hassan Ahmed', 'Ayesha Khan'
+];
+
+// Generates 100 realistic trips between Bangladesh cities
+```
 
 ## 📊 Performance Comparison
 
@@ -156,12 +244,13 @@ GET /api/v1/drivers/:driverId/analytics?optimized=true
 
 ## 🧪 Testing & Validation
 
-### Performance Testing Script
+### Database Seeding
 ```bash
-# Run performance benchmark
-node test-performance.js
+# Seed with Bangladesh data
+npm run db:seed
 
-# Expected output showing performance difference
+# View data in Prisma Studio
+npm run db:studio
 ```
 
 ### Load Testing
@@ -189,6 +278,8 @@ ab -n 1000 -c 10 http://localhost:3000/api/v1/drivers/1/analytics/optimized
 - Easier debugging and monitoring
 - Can implement caching per entity type
 - Better connection pool utilization
+- Full TypeScript type safety
+- Clean, maintainable code
 
 **Disadvantages** ❌:
 - Multiple database round-trips
@@ -214,21 +305,20 @@ ab -n 1000 -c 10 http://localhost:3000/api/v1/drivers/1/analytics/optimized
 
 ### Environment Configuration
 ```bash
-# Database settings
-DB_HOST=localhost
-DB_USER=root
-DB_PASSWORD=your_password
-DB_NAME=trucklagbe
-DB_PORT=3306
+# Prisma database URL
+DATABASE_URL="mysql://username:password@localhost:3306/trucklagbe"
 ```
 
-### Connection Pool Optimization
+### Prisma Configuration
 ```typescript
-const pool = mysql.createPool({
-  connectionLimit: 50,
-  acquireTimeout: 60000,
-  timeout: 60000,
-  queueLimit: 0
+// Optimize connection pool for multiple small queries
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL,
+    },
+  },
+  log: ['query', 'info', 'warn', 'error'],
 });
 ```
 
@@ -236,7 +326,7 @@ const pool = mysql.createPool({
 - Set up alerts for response time > 500ms
 - Monitor database connection pool utilization
 - Track error rates and timeout frequencies
-- Implement APM tools (New Relic, DataDog, etc.)
+- Set up APM tools (New Relic, DataDog, etc.)
 
 ## 📈 Scaling Considerations
 
@@ -254,32 +344,39 @@ const pool = mysql.createPool({
 
 ## 🏆 Best Practices Implemented
 
-1. **Separation of Concerns**: Database, service, and controller layers
-2. **Error Handling**: Proper HTTP status codes and error messages
-3. **Input Validation**: Parameter validation and sanitization
-4. **Performance Monitoring**: Built-in performance testing capabilities
+1. **Type Safety**: Centralized TypeScript interfaces
+2. **Separation of Concerns**: Clean architecture layers
+3. **Error Handling**: Proper HTTP status codes and validation
+4. **Database Optimization**: Prisma with efficient queries
 5. **Scalable Architecture**: Linear performance scaling
 6. **Database Indexing**: Proper table structure and relationships
 7. **Connection Management**: Efficient database connection handling
 8. **Async Operations**: Non-blocking database operations
+9. **Realistic Data**: Bangladesh-based logistics scenarios
+10. **Maintainable Code**: Clean, documented implementation
 
 ## 🎉 Conclusion
 
-The optimized approach transforms an **O(N³) exponential complexity problem** into an **O(N) linear complexity solution**. While it requires more application logic and multiple database round-trips, the performance benefits in production environments far outweigh these costs.
+The optimized approach transforms an **O(N³) exponential complexity problem** into an **O(N) linear complexity solution**. Using **Prisma ORM** provides additional benefits:
+
+- **Type Safety**: Compile-time validation of database operations
+- **Query Optimization**: Automatic query optimization and connection pooling
+- **Maintainability**: Clean, readable code with centralized types
+- **Realistic Testing**: Bangladesh-based data for authentic scenarios
 
 **Key Takeaways**:
 1. **Avoid complex JOINs** in high-traffic production systems
 2. **Break down complex queries** into simpler, indexed queries
-3. **Measure performance** at scale, not just in development
+3. **Use modern ORMs** like Prisma for better performance and type safety
 4. **Plan for growth** - what works with 100 records may fail with 100,000
 5. **Monitor and optimize** continuously as data volumes increase
 
-This solution provides a **robust, scalable foundation** for the Trip Analytics feature that will perform consistently regardless of data volume or user load, ensuring the dispatch managers can access critical trip information without performance degradation.
+This solution provides a **robust, scalable foundation** for the Trip Analytics feature that will perform consistently regardless of data volume or user load, ensuring dispatch managers can access critical trip information without performance degradation.
 
 ## 📚 Additional Resources
 
 - [TRIP_ANALYTICS_ANALYSIS.md](TRIP_ANALYTICS_ANALYSIS.md) - Detailed technical analysis
-- [test-performance.js](test-performance.js) - Performance testing script
 - [README.md](README.md) - Setup and usage instructions
 - [NestJS Documentation](https://nestjs.com/) - Framework documentation
+- [Prisma Documentation](https://www.prisma.io/docs/) - Database ORM guide
 - [MySQL Performance Tuning](https://dev.mysql.com/doc/refman/8.0/en/optimization.html) - Database optimization guide 
