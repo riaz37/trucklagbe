@@ -28,9 +28,8 @@ show_usage() {
     echo "Usage: $0 [test-type] [options]"
     echo ""
     echo "Test Types:"
-    echo "  load-optimized     - Run load test on optimized endpoints only"
-    echo "  load-unoptimized   - Run load test on unoptimized endpoints only"
-    echo "  performance        - Run database performance tests"
+    echo "  load               - Run load test comparing optimized vs unoptimized endpoints"
+    echo "  performance        - Run database performance comparison tests (Optimized vs Unoptimized)"
     echo "  generate-data      - Generate massive test data"
     echo "  all                - Run all tests sequentially"
     echo ""
@@ -39,8 +38,8 @@ show_usage() {
     echo "  --help             - Show this help message"
     echo ""
     echo "Examples:"
-    echo "  $0 load-optimized"
-    echo "  $0 load-unoptimized --output-dir ./custom-reports"
+    echo "  $0 load            - Compare both approaches under load"
+    echo "  $0 performance     - Compare optimized vs unoptimized performance"
     echo "  $0 all"
 }
 
@@ -50,36 +49,25 @@ run_load_test() {
     local output_dir=${2:-"$REPORTS_DIR"}
     local timestamp=$(date +"%Y%m%d_%H%M%S")
     
-    echo -e "${YELLOW}📊 Running $test_type load test...${NC}"
+    echo -e "${YELLOW}📊 Running load test comparison...${NC}"
     
-    case $test_type in
-        "load-optimized")
-            artillery run "$LOAD_TESTS_DIR/artillery-optimized-only.yml" \
-                --output "$output_dir/optimized-only_$timestamp.json"
-            ;;
-        "load-unoptimized")
-            artillery run "$LOAD_TESTS_DIR/artillery-unoptimized-only.yml" \
-                --output "$output_dir/unoptimized-only_$timestamp.json"
-            ;;
-        *)
-            echo -e "${RED}❌ Unknown load test type: $test_type${NC}"
-            exit 1
-            ;;
-    esac
+    # Always run the comparison test
+    artillery run "$LOAD_TESTS_DIR/artillery-comparison.yml" \
+        --output "$output_dir/comparison_$timestamp.json"
     
-    echo -e "${GREEN}✅ $test_type load test completed!${NC}"
+    echo -e "${GREEN}✅ Load test comparison completed!${NC}"
 }
 
 # Function to run performance tests
 run_performance_tests() {
-    local output_dir=${1:-"$REPORTS_DIR"}
-    
-    echo -e "${YELLOW}⚡ Running database performance tests...${NC}"
-    
-    # Run database performance test
-    node "$PERFORMANCE_TESTS_DIR/test-database-performance.js" > "$output_dir/database-performance_$(date +"%Y%m%d_%H%M%S").log" 2>&1
-    
-    echo -e "${GREEN}✅ Performance tests completed!${NC}"
+  local output_dir=${1:-"$REPORTS_DIR"}
+  
+  echo -e "${YELLOW}⚡ Running database performance comparison tests...${NC}"
+  
+  # Run database performance comparison test (Optimized vs Unoptimized)
+  node "$PERFORMANCE_TESTS_DIR/test-database-performance.js" > "$output_dir/performance-comparison_$(date +"%Y%m%d_%H%M%S").log" 2>&1
+  
+  echo -e "${GREEN}✅ Performance comparison tests completed!${NC}"
 }
 
 # Function to generate test data
@@ -106,9 +94,8 @@ run_all_tests() {
     # 2. Run performance tests
     run_performance_tests "$output_dir"
     
-    # 3. Run load tests
-    run_load_test "load-optimized" "$output_dir"
-    run_load_test "load-unoptimized" "$output_dir"
+    # 3. Run load test comparison
+    run_load_test "load" "$output_dir"
     
     echo -e "${GREEN}🎉 All tests completed successfully!${NC}"
     echo -e "${BLUE}📁 Reports saved to: $output_dir${NC}"
@@ -154,7 +141,7 @@ main() {
     
     # Run the specified test
     case $test_type in
-        "load-optimized"|"load-unoptimized")
+        "load")
             run_load_test "$test_type" "$output_dir"
             ;;
         "performance")

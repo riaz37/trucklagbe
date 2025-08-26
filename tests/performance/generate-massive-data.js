@@ -1,5 +1,4 @@
 const { PrismaClient } = require('@prisma/client');
-const faker = require('faker');
 
 const prisma = new PrismaClient();
 
@@ -57,7 +56,13 @@ function getRandomAmount() {
 }
 
 function getRandomRating() {
-  return (Math.random() * 2 + 3).toFixed(2); // 3.0 to 5.0
+  // Generate more realistic rating distribution
+  const rand = Math.random();
+  if (rand < 0.1) return (Math.random() * 1 + 1).toFixed(2); // 10% chance of 1.0-2.0
+  if (rand < 0.2) return (Math.random() * 1 + 2).toFixed(2); // 10% chance of 2.0-3.0
+  if (rand < 0.4) return (Math.random() * 1 + 3).toFixed(2); // 20% chance of 3.0-4.0
+  if (rand < 0.7) return (Math.random() * 1 + 4).toFixed(2); // 30% chance of 4.0-5.0
+  return (Math.random() * 0.5 + 4.5).toFixed(2); // 30% chance of 4.5-5.0
 }
 
 function getRandomPhoneNumber() {
@@ -242,10 +247,9 @@ async function generateMassiveData() {
 
     for (const trip of ratingTripIds) {
       ratings.push({
-        rating_id: ratingCount + 1,
         trip_id: trip.id,
-        rating_value: getRandomRating(),
-        comment: Math.random() > 0.3 ? getRandomComment() : null,
+        rating_value: parseFloat(getRandomRating()), // Convert to number
+        comment: Math.random() > 0.3 ? getRandomComment() : '', // Use empty string instead of null
       });
       ratingCount++;
 

@@ -1,17 +1,28 @@
 import { NestFactory } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { PerformanceMonitoringInterceptor } from './common/interceptors/performance-monitoring.interceptor';
+import { MonitoringService } from './common/services/monitoring.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Set global prefix for all routes
+  app.setGlobalPrefix('api/v1');
+
+  // Get the MonitoringService from the module context
+  const monitoringService = app.get(MonitoringService);
+
+  // Apply global interceptor for unified performance monitoring
+  app.useGlobalInterceptors(
+    new PerformanceMonitoringInterceptor(monitoringService),
+  );
 
   // Swagger configuration
   const config = new DocumentBuilder()
     .setTitle('TruckLagBE API')
     .setDescription('Truck logistics and analytics backend API')
     .setVersion('1.0.0')
-    .addTag('drivers', 'Driver analytics and trip management')
-    .addTag('analytics', 'Trip analytics and performance metrics')
     .addBearerAuth()
     .build();
 

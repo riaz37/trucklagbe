@@ -14,35 +14,30 @@ import {
   ApiResponse,
 } from '@nestjs/swagger';
 import { TripAnalyticsService } from './trip-analytics.service';
-import { DriverAnalytics } from '../types/trip-analytics.types';
 import {
   DriverAnalyticsDto,
-  ErrorResponseDto,
   DriverIdParamDto,
-  AnalyticsQueryDto,
 } from '../types/dto/driver-analytics.dto';
+import { MonitoringService } from '../common/services/monitoring.service';
 
-@ApiTags('drivers')
-@Controller('api/v1/drivers')
+@ApiTags('trip-analytics')
+@Controller('drivers')
 export class TripAnalyticsController {
-  constructor(private readonly tripAnalyticsService: TripAnalyticsService) {}
+  constructor(
+    private readonly tripAnalyticsService: TripAnalyticsService,
+    private readonly monitoringService: MonitoringService,
+  ) {}
 
   @Get(':driverId/analytics')
   @ApiOperation({
     summary: 'Get driver analytics',
     description:
-      'Retrieve comprehensive analytics for a specific driver with optional optimization',
+      'Retrieve comprehensive analytics for a specific driver with caching',
   })
   @ApiParam({
     name: 'driverId',
     description: 'Driver ID',
     example: '1001',
-  })
-  @ApiQuery({
-    name: 'optimized',
-    description: 'Use optimized query (true/false)',
-    required: false,
-    example: 'false',
   })
   @ApiResponse({
     status: 200,
@@ -52,33 +47,32 @@ export class TripAnalyticsController {
   @ApiResponse({
     status: 400,
     description: 'Invalid driver ID',
-    type: ErrorResponseDto,
+    type: Object,
   })
   @ApiResponse({
     status: 404,
     description: 'Driver not found',
-    type: ErrorResponseDto,
+    type: Object,
   })
   @ApiResponse({
     status: 500,
     description: 'Internal server error',
-    type: ErrorResponseDto,
+    type: Object,
   })
   @UsePipes(new ValidationPipe({ transform: true }))
   async getDriverAnalytics(
     @Param() params: DriverIdParamDto,
-    @Query() query: AnalyticsQueryDto,
-  ): Promise<DriverAnalytics> {
+  ): Promise<DriverAnalyticsDto> {
     return this.tripAnalyticsService.getDriverAnalytics(
-      params.driverId,
-      query.optimized,
+      Number(params.driverId),
     );
   }
 
   @Get(':driverId/analytics/unoptimized')
   @ApiOperation({
-    summary: 'Get driver analytics (unoptimized)',
-    description: 'Retrieve driver analytics using unoptimized database queries',
+    summary: 'Get driver analytics (Unoptimized)',
+    description:
+      'Retrieve driver analytics using single complex JOIN query - FOR COMPARISON ONLY',
   })
   @ApiParam({
     name: 'driverId',
@@ -87,107 +81,210 @@ export class TripAnalyticsController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Driver analytics retrieved successfully',
+    description: 'Driver analytics retrieved successfully (unoptimized)',
     type: DriverAnalyticsDto,
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Invalid driver ID',
-    type: ErrorResponseDto,
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Driver not found',
-    type: ErrorResponseDto,
-  })
-  @ApiResponse({
-    status: 500,
-    description: 'Internal server error',
-    type: ErrorResponseDto,
   })
   @UsePipes(new ValidationPipe({ transform: true }))
   async getDriverAnalyticsUnoptimized(
     @Param() params: DriverIdParamDto,
-  ): Promise<DriverAnalytics> {
+  ): Promise<DriverAnalyticsDto> {
     return this.tripAnalyticsService.getDriverAnalyticsUnoptimized(
-      params.driverId,
+      Number(params.driverId),
     );
   }
 
-  @Get(':driverId/analytics/optimized')
+  @Get('locations')
   @ApiOperation({
-    summary: 'Get driver analytics (optimized)',
-    description: 'Retrieve driver analytics using optimized database queries',
+    summary: 'Get location-based analytics',
+    description: 'Retrieve trip analytics grouped by start and end locations',
   })
-  @ApiParam({
-    name: 'driverId',
-    description: 'Driver ID',
-    example: '1001',
+  @ApiQuery({
+    name: 'startDate',
+    description: 'Start date (YYYY-MM-DD)',
+    example: '2024-01-01',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    description: 'End date (YYYY-MM-DD)',
+    example: '2024-12-31',
+  })
+  @ApiQuery({
+    name: 'page',
+    description: 'Page number',
+    required: false,
+    example: '1',
+  })
+  @ApiQuery({
+    name: 'limit',
+    description: 'Items per page',
+    required: false,
+    example: '50',
   })
   @ApiResponse({
     status: 200,
-    description: 'Driver analytics retrieved successfully',
-    type: DriverAnalyticsDto,
+    description: 'Location analytics retrieved successfully',
+    type: Object,
   })
-  @ApiResponse({
-    status: 400,
-    description: 'Invalid driver ID',
-    type: ErrorResponseDto,
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Driver not found',
-    type: ErrorResponseDto,
-  })
-  @ApiResponse({
-    status: 500,
-    description: 'Internal server error',
-    type: ErrorResponseDto,
-  })
-  @UsePipes(new ValidationPipe({ transform: true }))
-  async getDriverAnalyticsOptimized(
-    @Param() params: DriverIdParamDto,
-  ): Promise<DriverAnalytics> {
-    return this.tripAnalyticsService.getDriverAnalyticsOptimized(
-      params.driverId,
+  async getLocationAnalytics(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 50,
+  ) {
+    return this.tripAnalyticsService.getLocationAnalytics(
+      startDate,
+      endDate,
+      page,
+      limit,
     );
   }
 
-  @Get(':driverId/analytics/cached')
+  @Get('revenue')
   @ApiOperation({
-    summary: 'Get driver analytics (cached)',
+    summary: 'Get revenue analytics',
+    description: 'Retrieve monthly revenue analytics',
+  })
+  @ApiQuery({
+    name: 'startDate',
+    description: 'Start date (YYYY-MM-DD)',
+    example: '2024-01-01',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    description: 'End date (YYYY-MM-DD)',
+    example: '2024-12-31',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Revenue analytics retrieved successfully',
+    type: Object,
+  })
+  async getRevenueAnalytics(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    return this.tripAnalyticsService.getRevenueAnalytics(startDate, endDate);
+  }
+
+  @Get('drivers/ranking')
+  @ApiOperation({
+    summary: 'Get driver performance ranking',
+    description: 'Retrieve driver rankings based on performance metrics',
+  })
+  @ApiQuery({
+    name: 'limit',
+    description: 'Number of drivers to return',
+    required: false,
+    example: '50',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Driver rankings retrieved successfully',
+    type: Object,
+  })
+  async getDriverRanking(@Query('limit') limit: number = 50) {
+    return this.tripAnalyticsService.getDriverRanking(limit);
+  }
+
+  @Get('cache/clear')
+  @ApiOperation({
+    summary: 'Clear analytics cache',
+    description: 'Clear cached analytics data',
+  })
+  @ApiQuery({
+    name: 'pattern',
+    description: 'Cache key pattern to clear (e.g., "driver:*", "location:*")',
+    example: 'driver:*',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Cache cleared successfully',
+    type: Object,
+  })
+  async clearCache(@Query('pattern') pattern: string) {
+    await this.tripAnalyticsService.clearCache(pattern);
+    return { message: `Cache cleared for pattern: ${pattern}` };
+  }
+
+  @Get('health')
+  @ApiOperation({
+    summary: 'Health check',
     description:
-      'Retrieve driver analytics from cache for improved performance',
-  })
-  @ApiParam({
-    name: 'driverId',
-    description: 'Driver ID',
-    example: '1001',
+      'Check the health status of analytics service and dependencies',
   })
   @ApiResponse({
     status: 200,
-    description: 'Driver analytics retrieved successfully from cache',
-    type: DriverAnalyticsDto,
+    description: 'Health status retrieved successfully',
+    type: Object,
+  })
+  async healthCheck() {
+    return this.tripAnalyticsService.healthCheck();
+  }
+
+  @Get('performance/unoptimized')
+  @ApiOperation({
+    summary: 'Get unoptimized endpoint performance metrics',
+    description:
+      'Retrieve detailed performance metrics for the unoptimized analytics endpoint',
   })
   @ApiResponse({
-    status: 400,
-    description: 'Invalid driver ID',
-    type: ErrorResponseDto,
+    status: 200,
+    description: 'Performance metrics retrieved successfully',
+    type: Object,
+  })
+  async getUnoptimizedEndpointPerformance() {
+    return this.monitoringService.getPerformanceReport();
+  }
+
+  @Get('performance/:endpoint')
+  @ApiOperation({
+    summary: 'Get specific endpoint performance metrics',
+    description: 'Retrieve performance metrics for a specific endpoint type',
+  })
+  @ApiParam({
+    name: 'endpoint',
+    description: 'Endpoint type (optimized, unoptimized, analytics)',
+    example: 'optimized',
   })
   @ApiResponse({
-    status: 404,
-    description: 'Driver not found',
-    type: ErrorResponseDto,
+    status: 200,
+    description: 'Endpoint performance metrics retrieved successfully',
+    type: Object,
+  })
+  async getEndpointPerformance(
+    @Param('endpoint') endpoint: string,
+  ): Promise<any> {
+    return this.monitoringService.getEndpointMetrics(endpoint);
+  }
+
+  @Get('performance/:endpoint/history')
+  @ApiOperation({
+    summary: 'Get endpoint performance history',
+    description: 'Retrieve performance history logs for a specific endpoint',
+  })
+  @ApiParam({
+    name: 'endpoint',
+    description: 'Endpoint type (optimized, unoptimized, analytics)',
+    example: 'optimized',
+  })
+  @ApiQuery({
+    name: 'limit',
+    description: 'Number of history entries to return',
+    required: false,
+    example: '100',
   })
   @ApiResponse({
-    status: 500,
-    description: 'Internal server error',
-    type: ErrorResponseDto,
+    status: 200,
+    description: 'Performance history retrieved successfully',
+    type: Object,
   })
-  @UsePipes(new ValidationPipe({ transform: true }))
-  async getDriverAnalyticsCached(
-    @Param() params: DriverIdParamDto,
-  ): Promise<DriverAnalytics> {
-    return this.tripAnalyticsService.getDriverAnalyticsCached(params.driverId);
+  async getEndpointPerformanceHistory(
+    @Param('endpoint') endpoint: string,
+    @Query('limit') limit: number = 100,
+  ): Promise<any> {
+    return this.monitoringService.getEndpointPerformanceHistory(
+      endpoint,
+      limit,
+    );
   }
 }

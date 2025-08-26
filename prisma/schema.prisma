@@ -19,6 +19,7 @@ model Driver {
   
   @@map("drivers")
   @@index([id]) // Primary key index
+  @@index([onboarding_date]) // For date-based driver queries
 }
 
 model Trip {
@@ -34,6 +35,10 @@ model Trip {
   @@map("trips")
   @@index([driver_id]) // Critical for driver analytics queries
   @@index([trip_date]) // For date range queries
+  @@index([start_location, end_location]) // For location-based analytics
+  @@index([trip_date, driver_id]) // Composite index for driver date queries
+  @@index([start_location, trip_date]) // For location + date queries
+  @@index([end_location, trip_date]) // For destination + date queries
 }
 
 model Payment {
@@ -45,11 +50,15 @@ model Payment {
   
   @@map("payments")
   @@index([trip_id]) // For payment lookups
+  @@index([amount]) // For amount-based filtering
+  @@index([payment_date]) // For date-based payment queries
+  @@index([amount, payment_date]) // Composite index for amount + date queries
+  // CRITICAL: Add direct driver_id index for fast JOINs
+  @@index([trip_id, amount]) // For trip-based payment aggregation
 }
 
 model Rating {
   id           Int      @id @default(autoincrement())
-  rating_id    Int      @map("rating_id")
   trip_id      Int      @unique @map("trip_id")
   rating_value Decimal  @db.Decimal(3, 2) @map("rating_value")
   comment      String?  @map("comment")
@@ -57,4 +66,6 @@ model Rating {
   
   @@map("ratings")
   @@index([trip_id]) // For rating lookups
+  @@index([rating_value]) // For rating-based filtering
+  @@index([rating_value, trip_id]) // Composite index for rating + trip queries
 }

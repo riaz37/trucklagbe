@@ -142,6 +142,13 @@ async function main() {
         await prisma.payment.deleteMany();
         await prisma.trip.deleteMany();
         await prisma.driver.deleteMany();
+        
+        // Reset auto-increment counters
+        console.log('🔄 Resetting auto-increment counters...');
+        await prisma.$executeRaw`ALTER TABLE drivers AUTO_INCREMENT = 1`;
+        await prisma.$executeRaw`ALTER TABLE trips AUTO_INCREMENT = 1`;
+        await prisma.$executeRaw`ALTER TABLE payments AUTO_INCREMENT = 1`;
+        await prisma.$executeRaw`ALTER TABLE ratings AUTO_INCREMENT = 1`;
 
         // Create drivers
         console.log('👨‍💼 Creating drivers...');
@@ -160,7 +167,7 @@ async function main() {
 
         // Create trips
         console.log('🚛 Creating trips...');
-        const trips = [];
+        const trips: Array<{ id: number; trip_date: Date }> = [];
         for (let i = 1; i <= 100; i++) {
             const driver = drivers[Math.floor(Math.random() * drivers.length)];
             const startCity =
@@ -216,7 +223,6 @@ async function main() {
 
             await prisma.rating.create({
                 data: {
-                    rating_id: i + 1,
                     trip_id: trip.id,
                     rating_value: rating,
                     comment: comment,
