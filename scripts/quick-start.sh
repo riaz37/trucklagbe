@@ -82,6 +82,15 @@ fi
 echo "Installing dependencies..."
 npm install
 
+# Initialize Prisma (if not already initialized)
+if [ ! -f "prisma/schema.prisma" ]; then
+    echo "Initializing Prisma..."
+    npx prisma init
+    echo "✅ Prisma initialized"
+else
+    echo "✅ Prisma already initialized"
+fi
+
 # Generate Prisma client
 echo "Setting up database..."
 npm run db:generate
