@@ -221,7 +221,7 @@ export class TripAnalyticsController {
     return this.tripAnalyticsService.healthCheck();
   }
 
-  @Get('performance/unoptimized')
+  @Get('performance')
   @ApiOperation({
     summary: 'Get unoptimized endpoint performance metrics',
     description:
