@@ -6,7 +6,7 @@ import { DriverAnalyticsDto } from '../types/dto/driver-analytics.dto';
 export class TripAnalyticsService {
   private readonly logger = new Logger(TripAnalyticsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   // ============================================================================
   // UNOPTIMIZED VERSION - Single complex JOIN query (PROBLEMATIC)
@@ -78,7 +78,7 @@ export class TripAnalyticsService {
       const calculatedAverageRating =
         validRatings.length > 0
           ? validRatings.reduce((sum, trip) => sum + trip.rating_value, 0) /
-            validRatings.length
+          validRatings.length
           : 0;
 
       const analytics: DriverAnalyticsDto = {
@@ -108,9 +108,6 @@ export class TripAnalyticsService {
     try {
       // TRULY OPTIMIZED: Fewer, more efficient queries for scalability
       const prisma = this.prisma.getPrismaClient();
-
-      // Strategy: Use 3 targeted queries instead of 7, with proper indexing
-      // This balances query efficiency with database round trips
 
       // Query 1: Get driver basic info (uses primary key - O(1) lookup)
       const driver = await prisma.driver.findUnique({
@@ -164,7 +161,7 @@ export class TripAnalyticsService {
       const averageRating =
         validRatings.length > 0
           ? validRatings.reduce((sum, trip) => sum + trip.rating_value, 0) /
-            validRatings.length
+          validRatings.length
           : 0;
 
       // Transform trips to match DTO format
