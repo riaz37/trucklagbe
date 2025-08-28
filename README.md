@@ -38,8 +38,8 @@ npm run dev
 - **Framework**: NestJS with TypeScript
 - **Database**: MySQL with Prisma ORM
 - **Performance**: Database optimization & query tuning
+- **Monitoring**: Real-time performance tracking
 - **Containerization**: Docker Compose
-- **Testing**: Artillery load testing
 
 ## 📁 Project Structure
 
@@ -54,38 +54,53 @@ prisma/
 ├── schema.prisma           # Database schema
 └── seed.ts                # Sample data seeder
 
-tests/
-├── load/                   # Load testing scripts
-└── performance/            # Performance testing
+scripts/
+├── quick-start.sh         # Automated setup script
+├── performance-comparison.sh # Performance benchmarking
+└── generate-massive-data.js # Test data generation
 ```
+
+## 🎯 Core Features
+
+- **Driver Analytics**: Performance metrics and rankings
+- **Location Analytics**: Trip analysis by locations
+- **Revenue Analytics**: Monthly revenue tracking
+- **Performance Monitoring**: Real-time metrics and alerts
+- **Database Optimization**: Optimized vs. unoptimized queries
 
 ## 🧪 Testing & Performance
 
 ### **Quick Testing**
 ```bash
 # Test endpoints
+curl "http://localhost:3000/api/v1/drivers/1/analytics"
 curl "http://localhost:3000/api/v1/drivers/1/analytics/unoptimized"
-curl "http://localhost:3000/api/v1/drivers/1/analytics/optimized"
 ```
 
 ### **Performance Testing**
 ```bash
 # Generate test data
-npm run data:generate:massive
+npm run data:generate
 
 # Run performance tests
-npm run test:http
-npm run test:performance:full
-npm run test:load
+npm run perf:full
 ```
 
 ### **Database Management**
 ```bash
 # Prisma Studio
 npm run db:studio
-
-
 ```
+
+## 📊 API Endpoints
+
+- `GET /api/v1/drivers/:driverId/analytics` - Optimized driver analytics
+- `GET /api/v1/drivers/:driverId/analytics/unoptimized` - Unoptimized comparison
+- `GET /api/v1/drivers/locations` - Location-based analytics
+- `GET /api/v1/drivers/revenue` - Revenue analytics
+- `GET /api/v1/drivers/ranking` - Driver performance rankings
+- `GET /api/v1/drivers/health` - Service health check
+- `GET /api/v1/drivers/performance` - Performance metrics
 
 ## 🐳 Docker Commands
 
@@ -102,7 +117,7 @@ npm run docker:up
 
 ## 📚 Documentation
 
-- **[PERFORMANCE_ENGINEERING.md](PERFORMANCE_ENGINEERING.md)** - Detailed performance analysis
+- **[OPTIMIZATION_APPROACH.md](OPTIMIZATION_APPROACH.md)** - Performance analysis
 - **[NestJS Docs](https://nestjs.com/)** - Framework documentation
 - **[Prisma Docs](https://www.prisma.io/docs/)** - Database ORM guide
 
@@ -125,4 +140,16 @@ npm run build
 npm run start:prod
 ```
 
+## 🔧 Development
+
+```bash
+# Linting
+npm run lint
+
+# Formatting
+npm run format
+
+# Testing
+npm run test
+```
 
