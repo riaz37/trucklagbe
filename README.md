@@ -11,7 +11,7 @@ npm run setup
 
 This automatically sets up everything:
 - ✅ Prerequisites check (Docker, Node.js, npm)
-- 🐳 Docker services (MySQL, Redis)
+- 🐳 Docker services (MySQL)
 - 📦 Dependencies installation
 - 🗄️ Database schema and seeding
 - 🏗️ Application build
@@ -37,7 +37,7 @@ npm run dev
 
 - **Framework**: NestJS with TypeScript
 - **Database**: MySQL with Prisma ORM
-- **Caching**: Redis
+- **Performance**: Database optimization & query tuning
 - **Containerization**: Docker Compose
 - **Testing**: Artillery load testing
 
@@ -84,8 +84,7 @@ npm run test:load
 # Prisma Studio
 npm run db:studio
 
-# Redis cache test
-npm run redis:cache
+
 ```
 
 ## 🐳 Docker Commands

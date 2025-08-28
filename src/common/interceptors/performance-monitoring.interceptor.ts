@@ -31,7 +31,7 @@ export class PerformanceMonitoringInterceptor implements NestInterceptor {
 
     return next.handle().pipe(
       tap({
-        next: async (data) => {
+        next: async () => {
           const endTime = process.hrtime.bigint();
           const responseTimeMs = Number(endTime - startTime) / 1000000; // Convert nanoseconds to milliseconds
 
@@ -47,7 +47,6 @@ export class PerformanceMonitoringInterceptor implements NestInterceptor {
             responseTimeMs,
             driverId,
             false, // isError
-            this.isCachedResponse(data), // isCached
           );
         },
         error: async (error) => {
@@ -66,7 +65,6 @@ export class PerformanceMonitoringInterceptor implements NestInterceptor {
             responseTimeMs,
             driverId,
             true, // isError
-            false, // isCached
             error.message, // error
           );
         },
@@ -76,9 +74,9 @@ export class PerformanceMonitoringInterceptor implements NestInterceptor {
 
   private determineEndpointType(url: string): string {
     if (url.includes('/unoptimized')) {
-      return 'complex-query';
+      return 'unoptimized';
     } else if (url.includes('/analytics') && !url.includes('/unoptimized')) {
-      return 'cached-analytics';
+      return 'optimized';
     } else if (
       url.includes('/locations') ||
       url.includes('/revenue') ||
@@ -88,18 +86,5 @@ export class PerformanceMonitoringInterceptor implements NestInterceptor {
     } else {
       return 'other';
     }
-  }
-
-  private isCachedResponse(data: any): boolean {
-    // Check if response indicates it came from cache
-    // This is a simple heuristic - you might need to adjust based on your actual response structure
-    if (data && typeof data === 'object') {
-      return (
-        data._fromCache === true ||
-        data.cacheHit === true ||
-        data.source === 'cache'
-      );
-    }
-    return false;
   }
 }

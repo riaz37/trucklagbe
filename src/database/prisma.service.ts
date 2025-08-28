@@ -1,10 +1,9 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
-import { RedisService } from './redis.service';
 
 @Injectable()
 export class PrismaService implements OnModuleInit, OnModuleDestroy {
-  constructor(private readonly redisService: RedisService) {}
+  constructor() {}
 
   private prisma = new PrismaClient({
     datasources: {
@@ -88,34 +87,6 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
         },
       },
     });
-  }
-
-  // CACHE OPERATIONS
-
-  // Get cached analytics
-  async getCachedAnalytics<T>(driverId: number): Promise<T | null> {
-    const cacheKey = `driver:${driverId}:analytics`;
-    return await this.redisService.get<T>(cacheKey);
-  }
-
-  // Set cached analytics
-  async setCachedAnalytics<T>(driverId: number, data: T): Promise<void> {
-    const cacheKey = `driver:${driverId}:analytics`;
-    const cacheTTL = parseInt(process.env.REDIS_TTL) || 300;
-    await this.redisService.set(cacheKey, data, cacheTTL);
-  }
-
-  // Invalidate driver cache
-  async invalidateDriverCache(driverId: number): Promise<void> {
-    const cacheKey = `driver:${driverId}:analytics`;
-    await this.redisService.del(cacheKey);
-    console.log(`🗑️ Invalidated cache for driver ${driverId}`);
-  }
-
-  // Invalidate all driver caches
-  async invalidateAllDriverCaches(): Promise<void> {
-    await this.redisService.delPattern('driver:*:analytics');
-    console.log('🗑️ Invalidated all driver caches');
   }
 
   // Get Prisma client for direct access if needed

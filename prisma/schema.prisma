@@ -39,6 +39,7 @@ model Trip {
   @@index([trip_date, driver_id]) // Composite index for driver date queries
   @@index([start_location, trip_date]) // For location + date queries
   @@index([end_location, trip_date]) // For destination + date queries
+  @@index([driver_id, trip_date, id]) // For driver analytics with trip details
 }
 
 model Payment {
@@ -53,8 +54,8 @@ model Payment {
   @@index([amount]) // For amount-based filtering
   @@index([payment_date]) // For date-based payment queries
   @@index([amount, payment_date]) // Composite index for amount + date queries
-  // CRITICAL: Add direct driver_id index for fast JOINs
   @@index([trip_id, amount]) // For trip-based payment aggregation
+  @@index([trip_id, amount, payment_date]) // For comprehensive payment queries
 }
 
 model Rating {
@@ -68,4 +69,5 @@ model Rating {
   @@index([trip_id]) // For rating lookups
   @@index([rating_value]) // For rating-based filtering
   @@index([rating_value, trip_id]) // Composite index for rating + trip queries
+  @@index([trip_id, rating_value, comment]) // For comprehensive rating queries
 }

@@ -32,7 +32,7 @@ export class TripAnalyticsController {
   @ApiOperation({
     summary: 'Get driver analytics',
     description:
-      'Retrieve comprehensive analytics for a specific driver with caching',
+      'Retrieve comprehensive analytics for a specific driver using optimized database queries',
   })
   @ApiParam({
     name: 'driverId',
@@ -184,26 +184,6 @@ export class TripAnalyticsController {
   })
   async getDriverRanking(@Query('limit') limit: number = 50) {
     return this.tripAnalyticsService.getDriverRanking(limit);
-  }
-
-  @Get('cache/clear')
-  @ApiOperation({
-    summary: 'Clear analytics cache',
-    description: 'Clear cached analytics data',
-  })
-  @ApiQuery({
-    name: 'pattern',
-    description: 'Cache key pattern to clear (e.g., "driver:*", "location:*")',
-    example: 'driver:*',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Cache cleared successfully',
-    type: Object,
-  })
-  async clearCache(@Query('pattern') pattern: string) {
-    await this.tripAnalyticsService.clearCache(pattern);
-    return { message: `Cache cleared for pattern: ${pattern}` };
   }
 
   @Get('health')

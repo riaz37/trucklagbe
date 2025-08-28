@@ -1,18 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
-import { RedisService } from '../database/redis.service';
-import { RedisMonitorService } from '../database/redis-monitor.service';
 import { DriverAnalyticsDto } from '../types/dto/driver-analytics.dto';
 
 @Injectable()
 export class TripAnalyticsService {
   private readonly logger = new Logger(TripAnalyticsService.name);
 
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly redisService: RedisService,
-    private readonly redisMonitor: RedisMonitorService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   // ============================================================================
   // UNOPTIMIZED VERSION - Single complex JOIN query (PROBLEMATIC)
@@ -46,7 +40,7 @@ export class TripAnalyticsService {
 
       const driverData = result[0] as any;
 
-      // Get trip details for the unoptimized version too
+      // Get trip details for the unoptimized version
       const trips = await prisma.trip.findMany({
         where: { driver_id: driverId },
         select: {
@@ -108,28 +102,17 @@ export class TripAnalyticsService {
   }
 
   // ============================================================================
-  // TRULY OPTIMIZED VERSION - Database-optimized queries (ACTUALLY FAST)
+  // TRULY OPTIMIZED VERSION - Fewer, more efficient queries (SCALABLE)
   // ============================================================================
   async getDriverAnalytics(driverId: number): Promise<DriverAnalyticsDto> {
-    const cacheKey = `driver:${driverId}`;
-
     try {
-      // Try cache first
-      const cacheStartTime = Date.now();
-      const cached = await this.redisService.get<DriverAnalyticsDto>(cacheKey);
-      if (cached) {
-        const cacheResponseTime = Date.now() - cacheStartTime;
-        this.redisMonitor.recordHit(cacheResponseTime);
-        this.logger.log(
-          `Cache hit for driver ${driverId} - ${cacheResponseTime}ms`,
-        );
-        return cached;
-      }
-
-      // TRULY OPTIMIZED: Use database-optimized queries with proper indexing
+      // TRULY OPTIMIZED: Fewer, more efficient queries for scalability
       const prisma = this.prisma.getPrismaClient();
 
-      // Query 1: Get driver basic info (uses primary key - O(1))
+      // Strategy: Use 3 targeted queries instead of 7, with proper indexing
+      // This balances query efficiency with database round trips
+
+      // Query 1: Get driver basic info (uses primary key - O(1) lookup)
       const driver = await prisma.driver.findUnique({
         where: { id: driverId },
         select: {
@@ -144,81 +127,68 @@ export class TripAnalyticsService {
         throw new Error(`Driver with ID ${driverId} not found`);
       }
 
-      // Query 2: Get aggregated stats in ONE query using proper database design
-      // This is the key optimization - let the database do the heavy lifting
-      const stats = await prisma.$queryRaw`
+      // Query 2: Get trip count and earnings in one efficient query
+      // Uses indexed driver_id and avoids complex JOINs
+      const tripStats = await prisma.$queryRaw`
         SELECT 
           COUNT(t.id) as total_trips,
-          COALESCE(SUM(p.amount), 0) as total_earnings,
-          COALESCE(AVG(CASE WHEN r.rating_value > 0 THEN r.rating_value END), 0) as average_rating,
-          COUNT(CASE WHEN r.rating_value > 0 THEN r.id END) as total_ratings
+          COALESCE(SUM(p.amount), 0) as total_earnings
+        FROM trips t
+        LEFT JOIN payments p ON t.id = p.trip_id
+        WHERE t.driver_id = ${driverId}
+      `;
+
+      // Query 3: Get trips with payments and ratings in one efficient query
+      // Uses indexed driver_id and limits result set
+      const tripsWithDetails = await prisma.$queryRaw`
+        SELECT 
+          t.id as trip_id,
+          t.start_location,
+          t.end_location,
+          t.trip_date,
+          COALESCE(p.amount, 0) as amount,
+          COALESCE(r.rating_value, 0) as rating_value,
+          COALESCE(r.comment, '') as comment
         FROM trips t
         LEFT JOIN payments p ON t.id = p.trip_id
         LEFT JOIN ratings r ON t.id = r.trip_id
         WHERE t.driver_id = ${driverId}
+        ORDER BY t.trip_date DESC
+        LIMIT 50
       `;
 
-      // Query 3: Get detailed trip information with ratings and payments
-      const trips = await prisma.trip.findMany({
-        where: { driver_id: driverId },
-        select: {
-          id: true,
-          start_location: true,
-          end_location: true,
-          trip_date: true,
-          payment: {
-            select: { amount: true },
-          },
-          rating: {
-            select: {
-              rating_value: true,
-              comment: true,
-            },
-          },
-        },
-        orderBy: { trip_date: 'desc' },
-        take: 50, // Limit to last 50 trips for performance
-      });
-
-      // Transform trips to match DTO format
-      const tripDetails = trips.map((trip) => ({
-        trip_id: trip.id,
-        start_location: trip.start_location,
-        end_location: trip.end_location,
-        trip_date: trip.trip_date,
-        amount: Number(trip.payment?.amount || 0),
-        rating_value: Number(trip.rating?.rating_value || 0),
-        comment: trip.rating?.comment || '',
-      }));
-
-      // Calculate average rating more accurately
-      const validRatings = tripDetails.filter((trip) => trip.rating_value > 0);
-      const calculatedAverageRating =
+      // Calculate average rating from the trip details
+      const validRatings = (tripsWithDetails as any[]).filter(
+        (trip) => trip.rating_value > 0,
+      );
+      const averageRating =
         validRatings.length > 0
           ? validRatings.reduce((sum, trip) => sum + trip.rating_value, 0) /
             validRatings.length
           : 0;
 
+      // Transform trips to match DTO format
+      const tripDetails = (tripsWithDetails as any[]).map((trip) => ({
+        trip_id: trip.trip_id,
+        start_location: trip.start_location,
+        end_location: trip.end_location,
+        trip_date: trip.trip_date,
+        amount: Number(trip.amount),
+        rating_value: Number(trip.rating_value),
+        comment: trip.comment,
+      }));
+
+      // Build analytics object
       const analytics: DriverAnalyticsDto = {
         driver_id: driver.id,
         driver_name: driver.driver_name,
         phone_number: driver.phone_number,
         onboarding_date: driver.onboarding_date,
-        total_trips: Number(stats[0]?.total_trips || 0),
-        total_earnings: Number(stats[0]?.total_earnings || 0),
-        average_rating: Number(calculatedAverageRating.toFixed(2)), // Use calculated average
-        trips: tripDetails, // Now populated with actual trip data
+        total_trips: Number(tripStats[0]?.total_trips || 0),
+        total_earnings: Number(tripStats[0]?.total_earnings || 0),
+        average_rating: Number(averageRating.toFixed(2)),
+        trips: tripDetails,
       };
-
-      // Cache for 5 minutes
-      await this.redisService.set(cacheKey, analytics, 300);
-
-      // Record cache miss since we had to fetch from database
-      const totalResponseTime = Date.now() - cacheStartTime;
-      this.redisMonitor.recordMiss(totalResponseTime);
-      this.logger.log(
-        `Cache miss for driver ${driverId} - Total response time: ${totalResponseTime}ms`,
-      );
 
       return analytics;
     } catch (error) {
@@ -235,16 +205,9 @@ export class TripAnalyticsService {
     limit: number = 50,
   ) {
     const offset = (page - 1) * limit;
-    const cacheKey = `location:${startDate}:${endDate}:${page}:${limit}`;
 
     try {
-      // Try cache first
-      const cached = await this.redisService.get(cacheKey);
-      if (cached) {
-        return cached;
-      }
-
-      // Use Prisma findMany instead of groupBy to avoid type issues
+      // Use Prisma aggregations with date grouping
       const prisma = this.prisma.getPrismaClient();
       const trips = await prisma.trip.findMany({
         where: {
@@ -291,9 +254,6 @@ export class TripAnalyticsService {
         .sort((a, b) => b.trip_count - a.trip_count)
         .slice(offset, offset + limit);
 
-      // Cache for 10 minutes
-      await this.redisService.set(cacheKey, analytics, 600);
-
       return analytics;
     } catch (error) {
       this.logger.error(`Error getting location analytics: ${error.message}`);
@@ -303,15 +263,7 @@ export class TripAnalyticsService {
 
   // Revenue analytics by month
   async getRevenueAnalytics(startDate: string, endDate: string) {
-    const cacheKey = `revenue:${startDate}:${endDate}`;
-
     try {
-      // Try cache first
-      const cached = await this.redisService.get(cacheKey);
-      if (cached) {
-        return cached;
-      }
-
       // Use Prisma aggregations with date grouping
       const prisma = this.prisma.getPrismaClient();
       const trips = await prisma.trip.findMany({
@@ -360,9 +312,6 @@ export class TripAnalyticsService {
       // Sort by month descending
       analytics.sort((a, b) => b.month.localeCompare(a.month));
 
-      // Cache for 15 minutes
-      await this.redisService.set(cacheKey, analytics, 900);
-
       return analytics;
     } catch (error) {
       this.logger.error(`Error getting revenue analytics: ${error.message}`);
@@ -372,15 +321,7 @@ export class TripAnalyticsService {
 
   // Driver ranking (simplified)
   async getDriverRanking(limit: number = 50) {
-    const cacheKey = `ranking:${limit}`;
-
     try {
-      // Try cache first
-      const cached = await this.redisService.get(cacheKey);
-      if (cached) {
-        return cached;
-      }
-
       // Use Prisma aggregations for driver ranking
       const sixMonthsAgo = new Date();
       sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
@@ -429,9 +370,6 @@ export class TripAnalyticsService {
         .sort((a, b) => b.total_earnings - a.total_earnings)
         .slice(0, limit);
 
-      // Cache for 10 minutes
-      await this.redisService.set(cacheKey, rankings, 600);
-
       return rankings;
     } catch (error) {
       this.logger.error(`Error getting driver ranking: ${error.message}`);
@@ -439,31 +377,18 @@ export class TripAnalyticsService {
     }
   }
 
-  // Clear cache
-  async clearCache(pattern: string) {
-    try {
-      await this.redisService.delPattern(pattern);
-      this.logger.log(`Cache cleared for pattern: ${pattern}`);
-    } catch (error) {
-      this.logger.error(`Error clearing cache: ${error.message}`);
-    }
-  }
-
   // Health check
   async healthCheck() {
     try {
-      const redisHealthy = await this.redisService.healthCheck();
       const dbHealthy = await this.prisma.getDriverById(1).catch(() => null);
 
       return {
-        redis: redisHealthy,
         database: !!dbHealthy,
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
       this.logger.error(`Health check failed: ${error.message}`);
       return {
-        redis: false,
         database: false,
         timestamp: new Date().toISOString(),
         error: error.message,
