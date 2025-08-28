@@ -1,0 +1,23 @@
+TRUCKLAGBE PERFORMANCE COMPARISON REPORT
+Generated: Fri Aug 29 12:15:23 AM +06 2025
+========================================
+
+TEST PARAMETERS:
+  Single requests: 1000
+  Concurrent requests: 3000
+  Load test duration: 1000s
+
+SINGLE REQUEST RESULTS:
+  Optimized:   Avg: 67ms, Min: 61ms, Max: 171ms
+  Unoptimized: Avg: 81ms, Min: 69ms, Max: 209ms
+
+CONCURRENT REQUEST RESULTS:
+  Optimized:   250184ms for 3000 requests
+  Unoptimized: 249929ms for 3000 requests
+
+LOAD TEST RESULTS:
+  Optimized:   63ms avg response, 6 req/s
+  Unoptimized: 73ms avg response, 6 req/s
+
+RECOMMENDATIONS:
+  ✅ Optimized endpoint is performing better
